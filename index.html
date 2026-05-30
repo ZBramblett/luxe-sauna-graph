@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leveling Curve: 101 → 300</title>
+<meta property="og:title" content="Leveling Curve 101 → 300">
+<meta property="og:description" content="Interactive chart of leveling rate and hours required per level.">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0; padding: 16px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    color: #e8e8e8; min-height: 100vh;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: clamp(20px, 4vw, 28px); margin: 0 0 4px 0; color: #fff; }
+  .sub { font-size: 13px; color: #aab; margin-bottom: 20px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .card {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 12px 16px;
+    backdrop-filter: blur(10px);
+  }
+  .card .lbl { font-size: 11px; color: #99a; text-transform: uppercase; letter-spacing: 0.5px; }
+  .card .val { font-size: clamp(18px, 3vw, 22px); font-weight: 600; margin-top: 2px; color: #fff; }
+  .card .sm { font-size: 11px; color: #88a; margin-top: 2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 10px; font-size: 12px; color: #bbc; }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .chart-wrap {
+    position: relative; width: 100%;
+    height: clamp(320px, 55vh, 520px);
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 12px;
+  }
+  .controls { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  button {
+    padding: 9px 16px; font-size: 13px; font-weight: 500;
+    border: 1px solid #4a8fd8; background: #378ADD; color: #fff;
+    border-radius: 8px; cursor: pointer; transition: all 0.15s;
+  }
+  button:hover { background: #2c70b8; transform: translateY(-1px); }
+  button.secondary { background: transparent; color: #aac; border-color: rgba(255,255,255,0.2); }
+  button.secondary:hover { background: rgba(255,255,255,0.05); }
+  .footer { font-size: 11px; color: #889; margin-top: 16px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Leveling Curve: 101 → 300</h1>
+  <div class="sub">Hover/tap the chart for per-level values. Toggle the lines with the buttons below.</div>
+
+  <div class="cards">
+    <div class="card"><div class="lbl">Fastest level</div><div class="val">~4.4 min</div><div class="sm">level 104</div></div>
+    <div class="card"><div class="lbl">Slowest level</div><div class="val">~3,846 hr</div><div class="sm">level 299 (~160 days)</div></div>
+    <div class="card"><div class="lbl">Total 101 → 300</div><div class="val" id="totalHrs">—</div><div class="sm">all levels summed</div></div>
+    <div class="card"><div class="lbl">Worst wall</div><div class="val">Lvl 250</div><div class="sm">1.42× jump in cost</div></div>
+  </div>
+
+  <div class="legend">
+    <span><span style="width:14px;height:3px;background:#5eb3ff;display:inline-block;border-radius:2px;"></span>% per hour (left axis)</span>
+    <span><span style="width:14px;height:0;border-top:2px dashed #ff8a5b;display:inline-block;"></span>Hours per level, log scale (right axis)</span>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="lvlChart"></canvas>
+  </div>
+
+  <div class="controls">
+    <button onclick="downloadPNG()">📷 Download PNG</button>
+    <button class="secondary" onclick="toggleLine(0)">Toggle %/hr</button>
+    <button class="secondary" onclick="toggleLine(1)">Toggle hrs/level</button>
+  </div>
+
+  <div class="footer">Interactive chart · pinch/scroll on mobile · works offline once loaded</div>
+</div>
+
+<script>
+const levels = [101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,256,257,258,259,260,261,262,263,264,265,266,267,268,269,270,271,272,273,274,275,276,277,278,279,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,296,297,298,299];
+const pct = [1233.945,1273.147,1323.458,1374.499,1329.505,1294.034,1258.520,1214.500,1179.252,1374.461,1333.409,1283.328,1243.614,1203.968,1164.894,1126.805,1089.362,1045.852,1009.631,974.479,940.358,906.782,874.244,842.299,811.005,787.050,757.434,745.476,732.616,718.839,704.148,689.078,677.161,661.108,644.596,628.035,611.368,594.310,580.487,564.858,549.130,533.503,520.568,505.076,489.723,476.774,461.696,446.789,434.176,419.825,405.658,401.284,394.552,389.033,381.404,375.105,366.800,359.852,351.165,343.740,334.770,327.103,319.312,310.194,302.277,293.200,285.313,277.436,268.572,263.944,259.207,254.402,248.662,243.794,238.885,233.965,229.027,223.312,218.409,213.506,212.380,211.011,209.364,207.471,205.394,203.090,200.639,198.013,195.277,239.669,235.962,232.115,228.162,224.133,220.027,215.870,211.648,207.972,203.676,174.425,159.967,146.648,134.739,123.403,112.965,103.376,94.800,86.680,79.221,121.565,112.022,103.456,95.269,87.705,69.084,64.725,60.768,56.896,53.385,60.146,57.455,54.741,52.262,49.771,39.089,37.290,35.486,33.836,32.254,26.328,26.062,25.790,25.463,25.187,19.737,19.515,19.253,19.029,18.805,14.720,14.740,14.558,14.347,14.166,11.079,10.935,10.791,10.647,10.503,7.402,7.300,7.198,7.096,6.995,6.894,6.794,6.694,6.607,6.508,9.086,9.125,9.164,9.201,9.252,8.006,8.037,8.065,8.106,8.133,3.832,3.974,3.986,4.164,4.182,2.327,2.142,1.975,1.818,1.675,0.931,0.858,0.790,0.727,0.669,0.372,0.342,0.315,0.290,0.267,0.149,0.137,0.126,0.116,0.106,0.053,0.048,0.044,0.040,0.026];
+const hours = pct.map(p => 100 / p);
+const totalHours = hours.reduce((a,b) => a+b, 0);
+document.getElementById('totalHrs').textContent = Math.round(totalHours).toLocaleString() + ' hr';
+
+const chart = new Chart(document.getElementById('lvlChart'), {
+  data: {
+    labels: levels,
+    datasets: [
+      { type: 'line', label: '% per hour', data: pct, yAxisID: 'y', borderColor: '#5eb3ff', backgroundColor: '#5eb3ff', borderWidth: 2, pointRadius: 0, tension: 0.1, order: 1 },
+      { type: 'line', label: 'Hours to level', data: hours, yAxisID: 'y1', borderColor: '#ff8a5b', backgroundColor: '#ff8a5b', borderWidth: 2, borderDash: [5,4], pointRadius: 0, tension: 0.1, order: 2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(20,20,40,0.95)',
+        titleColor: '#fff', bodyColor: '#ddd',
+        borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1,
+        callbacks: {
+          title: (items) => 'Level ' + items[0].label + ' → ' + (parseInt(items[0].label)+1),
+          label: (ctx) => ctx.dataset.label === '% per hour'
+            ? '  ' + ctx.parsed.y.toFixed(3) + ' %/hr'
+            : '  ' + (ctx.parsed.y < 1 ? (ctx.parsed.y*60).toFixed(1) + ' min' : ctx.parsed.y.toFixed(2) + ' hr') + ' to level'
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: 'Level', color: '#aab' }, ticks: { maxTicksLimit: 20, color: '#99a' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y: { type: 'linear', position: 'left', title: { display: true, text: '% per hour', color: '#5eb3ff' }, ticks: { color: '#5eb3ff' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+      y1: { type: 'logarithmic', position: 'right', title: { display: true, text: 'Hours per level (log)', color: '#ff8a5b' }, ticks: { color: '#ff8a5b' }, grid: { drawOnChartArea: false } }
+    }
+  }
+});
+
+function downloadPNG() {
+  const link = document.createElement('a');
+  link.download = 'leveling_chart.png';
+  link.href = chart.toBase64Image('image/png', 1.0);
+  link.click();
+}
+function toggleLine(i) {
+  const meta = chart.getDatasetMeta(i);
+  meta.hidden = meta.hidden === null ? !chart.data.datasets[i].hidden : null;
+  chart.update();
+}
+</script>
+</body>
+</html>
